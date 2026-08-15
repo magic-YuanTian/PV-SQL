@@ -5,7 +5,7 @@
 [![Paper](https://img.shields.io/badge/Paper-Findings%20of%20ACL%202026-b31b1b.svg)](https://aclanthology.org/2026.findings-acl.1286/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Official implementation of our **Findings of ACL 2026** paper.
+Official implementation of our **ACL 2026** paper.
 [**Paper**](https://aclanthology.org/2026.findings-acl.1286/) · [**Live Demo**](http://18.207.218.62:3504/)
 
 ---
