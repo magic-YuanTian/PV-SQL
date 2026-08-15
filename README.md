@@ -304,10 +304,6 @@ carries no opinion about how you reach a model.
     title = "{PV}-{SQL}: Synergizing Database Probing and Rule-based Verification for Text-to-{SQL} Agents",
     author = "Tian, Yuan  and
       Zhang, Tianyi",
-    editor = "Liakata, Maria  and
-      Moreira, Viviane P.  and
-      Zhang, Jiajun  and
-      Jurgens, David",
     booktitle = "Findings of the {A}ssociation for {C}omputational {L}inguistics: {ACL} 2026",
     month = jul,
     year = "2026",
