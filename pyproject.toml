@@ -19,8 +19,8 @@ keywords = ["text-to-sql", "nl2sql", "llm-agent", "semantic-parsing"]
 dependencies = []
 
 [project.optional-dependencies]
-# The bundled OpenAI-compatible adapter (pvsql/llm.py).
-openai = ["openai>=1.30.0", "tenacity>=8.2.0"]
+# The bundled adapter (pvsql/llm.py).
+llm = ["openai>=1.30.0", "tenacity>=8.2.0"]
 dotenv = ["python-dotenv>=1.0.0"]
 
 [project.urls]

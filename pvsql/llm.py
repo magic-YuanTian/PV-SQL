@@ -1,27 +1,18 @@
-"""Optional OpenAI-compatible adapter for PV-SQL.
+"""Optional LLM adapter for PV-SQL.
 
-This module is a convenience, not a dependency. The framework takes the model
-as a plain `(messages, temperature) -> str` callable, so you can ignore
-everything here and pass your own:
+This module is a convenience, not a dependency. PV-SQL takes the model as a
+plain `(messages, temperature) -> str` callable, so you can ignore everything
+here and pass your own:
 
     PVSQL("db.sqlite", llm=my_callable)
 
-Credentials are read from environment variables only -- nothing is hardcoded.
-Copy `.env.example` to `.env` and fill in your own values, or export them in
-your shell.
+What follows is a minimal adapter for chat-completions endpoints, provided so
+the examples run out of the box. Configure it with three environment
+variables -- nothing is hardcoded:
 
-Two providers are supported:
-
-  PVSQL_LLM_PROVIDER=openai   (default)
-      OPENAI_API_KEY      required
-      OPENAI_BASE_URL     optional -- any OpenAI-compatible endpoint
-      PVSQL_MODEL         model name, default "gpt-4o"
-
-  PVSQL_LLM_PROVIDER=azure
-      AZURE_OPENAI_API_KEY      required
-      AZURE_OPENAI_ENDPOINT     required, e.g. https://<resource>.openai.azure.com/
-      AZURE_OPENAI_API_VERSION  optional, default "2024-10-01-preview"
-      PVSQL_MODEL               Azure *deployment* name, default "gpt-4o"
+    PVSQL_API_KEY    required
+    PVSQL_MODEL      model name, default "gpt-4o"
+    PVSQL_BASE_URL   optional, for a non-default endpoint
 """
 
 from __future__ import annotations
@@ -40,6 +31,7 @@ from tenacity import (
 
 class ConfigError(RuntimeError):
     """Bad or missing configuration. Never worth retrying."""
+
 
 DEFAULT_MODEL = os.getenv("PVSQL_MODEL", "gpt-4o")
 DEFAULT_TIMEOUT = float(os.getenv("PVSQL_LLM_TIMEOUT", "180"))
@@ -61,41 +53,28 @@ def _load_dotenv_if_present() -> None:
 _load_dotenv_if_present()
 
 
-def _require(name: str) -> str:
-    value = os.getenv(name)
-    if not value:
-        raise ConfigError(
-            f"Environment variable {name} is not set. "
-            f"Copy .env.example to .env and fill it in, or export {name} in your shell."
-        )
-    return value
-
-
 def _build_client():
-    provider = os.getenv("PVSQL_LLM_PROVIDER", "openai").strip().lower()
-
-    if provider == "azure":
-        from openai import AzureOpenAI
-
-        return AzureOpenAI(
-            azure_endpoint=_require("AZURE_OPENAI_ENDPOINT"),
-            api_key=_require("AZURE_OPENAI_API_KEY"),
-            api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-01-preview"),
-            timeout=DEFAULT_TIMEOUT,
+    api_key = os.getenv("PVSQL_API_KEY")
+    if not api_key:
+        raise ConfigError(
+            "PVSQL_API_KEY is not set. Copy .env.example to .env and fill it in, "
+            "export PVSQL_API_KEY in your shell, or pass your own `llm` callable "
+            "to PVSQL(...) and ignore this module."
         )
 
-    if provider == "openai":
+    try:
         from openai import OpenAI
+    except ImportError as e:  # pragma: no cover
+        raise ConfigError(
+            "The bundled adapter needs the `openai` package: pip install openai. "
+            "Alternatively pass your own `llm` callable to PVSQL(...)."
+        ) from e
 
-        kwargs = {"api_key": _require("OPENAI_API_KEY"), "timeout": DEFAULT_TIMEOUT}
-        base_url = os.getenv("OPENAI_BASE_URL")
-        if base_url:
-            kwargs["base_url"] = base_url
-        return OpenAI(**kwargs)
-
-    raise ConfigError(
-        f"Unknown PVSQL_LLM_PROVIDER={provider!r}. Expected 'openai' or 'azure'."
-    )
+    kwargs = {"api_key": api_key, "timeout": DEFAULT_TIMEOUT}
+    base_url = os.getenv("PVSQL_BASE_URL")
+    if base_url:
+        kwargs["base_url"] = base_url
+    return OpenAI(**kwargs)
 
 
 def get_client():
@@ -122,11 +101,7 @@ def reset_client() -> None:
 
 def _tracker() -> Dict[str, int]:
     if not hasattr(_thread_local, "tokens"):
-        _thread_local.tokens = {
-            "prompt_tokens": 0,
-            "completion_tokens": 0,
-            "total_tokens": 0,
-        }
+        reset_token_usage()
     return _thread_local.tokens
 
 

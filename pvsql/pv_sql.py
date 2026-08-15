@@ -44,7 +44,7 @@ LLMFn = Callable[..., str]
 
 
 def _default_llm() -> LLMFn:
-    """Resolve the bundled OpenAI-compatible adapter, imported only on use."""
+    """Resolve the bundled adapter, imported only on use."""
     from .llm import chat_completion
 
     return chat_completion
@@ -518,7 +518,7 @@ class PVSQL:
     ...     return my_client.generate(messages)
     >>> PVSQL("db.sqlite", llm=my_llm).run("How many active students?")
 
-    Omit `llm` to use the bundled OpenAI-compatible adapter in `pvsql.llm`.
+    Omit `llm` to use the bundled adapter in `pvsql.llm`.
     """
 
     def __init__(

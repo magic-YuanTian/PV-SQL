@@ -7,9 +7,8 @@ This is the shortest demonstration that the framework is model-agnostic: the
 `scripted_llm` below is thirty lines of plain Python with no LLM behind it, and
 the full probe -> generate -> verify -> repair loop runs on it unchanged.
 
-Swap `scripted_llm` for a real client -- Anthropic, vLLM, a HuggingFace
-pipeline, an internal gateway -- and nothing else in the pipeline changes. The
-same trick makes the pipeline testable in CI at zero cost.
+Swap `scripted_llm` for a real client and nothing else in the pipeline
+changes. The same trick makes the pipeline testable in CI at zero cost.
 """
 
 from __future__ import annotations

@@ -5,7 +5,7 @@ standard library -- pass any `(messages, temperature) -> str` callable as `llm`.
 
 The names re-exported from `pvsql.llm` (`chat_completion`, `ConfigError`,
 `get_token_usage`, `reset_token_usage`) are a convenience adapter for
-OpenAI-compatible endpoints. They are resolved lazily, so `openai` and
+chat-completions endpoints. They are resolved lazily, so `openai` and
 `tenacity` are only needed if you actually use them.
 """
 
@@ -55,7 +55,7 @@ __all__ = [
     "LLMFn",
     "DatabaseEnv",
     "SQLiteEnv",
-    # optional OpenAI-compatible adapter
+    # optional bundled adapter
     "chat_completion",
     "ConfigError",
     "get_token_usage",

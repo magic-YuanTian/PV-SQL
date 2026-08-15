@@ -71,10 +71,10 @@ from pvsql import PVSQL
 PVSQL("db.sqlite", llm=my_llm).run("How many active students?")
 ```
 
-Anything that satisfies that signature works — the OpenAI SDK, Anthropic,
-vLLM, a HuggingFace pipeline, a local process, or a stub that replays fixtures
-in a test. `pvsql/llm.py` is a convenience adapter for OpenAI-compatible
-endpoints, nothing more; delete it and the method still runs.
+Anything that satisfies that signature works — a hosted API, a self-hosted
+server, a local process, or a stub that replays fixtures in a test.
+`pvsql/llm.py` is a small convenience adapter, nothing more; delete it and the
+method still runs.
 
 ---
 
@@ -90,51 +90,32 @@ python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 
 pip install -e .                   # framework only -- no dependencies
-pip install -e ".[openai,dotenv]"  # plus the bundled OpenAI adapter
+pip install -e ".[llm,dotenv]"     # plus the bundled adapter
 ```
 
 `pip install -r requirements.txt` is equivalent to the second line. If you are
 plugging in your own model, the first line is all you need.
 
-## Configure credentials
+## Configure the bundled adapter
 
-*Only relevant if you use the bundled adapter — skip this if you inject your
-own `llm` callable.*
+*Skip this entirely if you pass your own `llm` callable.*
 
-**No API keys are stored in this repository.** Everything is read from the
-environment.
+**No API keys are stored in this repository.** The adapter reads three
+environment variables:
 
 ```bash
 cp .env.example .env
 # then edit .env
 ```
 
-Minimum working `.env` for OpenAI:
-
 ```bash
-PVSQL_LLM_PROVIDER=openai
-OPENAI_API_KEY=sk-your-key-here
+PVSQL_API_KEY=your-key-here
 PVSQL_MODEL=gpt-4o
+# PVSQL_BASE_URL=https://your-endpoint/v1   # optional
 ```
 
-For Azure OpenAI:
-
-```bash
-PVSQL_LLM_PROVIDER=azure
-AZURE_OPENAI_API_KEY=your-azure-key-here
-AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
-AZURE_OPENAI_API_VERSION=2024-10-01-preview
-PVSQL_MODEL=your-deployment-name
-```
-
-`OPENAI_BASE_URL` retargets the adapter at any OpenAI-compatible endpoint. For
-models that do not expose one, inject your own callable instead — see
-[Model-agnostic by construction](#model-agnostic-by-construction).
-
-If you would rather not use a `.env` file, export the same variables in your
-shell — `python-dotenv` is optional.
-
-Verify the connection:
+Exporting them in your shell works too — `python-dotenv` is optional. Verify
+the connection:
 
 ```bash
 python -m pvsql.llm        # prints "ok" and a token count
@@ -284,7 +265,7 @@ that as the security boundary it is:
 pvsql/
   pv_sql.py            the method: probe, generate, verify, repair  (stdlib only)
   db.py                DatabaseEnv interface + SQLiteEnv            (stdlib only)
-  llm.py               optional OpenAI-compatible adapter, credentials from env
+  llm.py               optional adapter, credentials read from environment
 examples/
   build_example_db.py  generates a small demo database
   run_example.py       end-to-end demo against a real model
