@@ -1,0 +1,10 @@
+# The PV-SQL framework itself needs nothing beyond the Python 3.9+ standard
+# library -- the language model is injected as a plain callable.
+#
+# The lines below are only for the bundled OpenAI-compatible adapter
+# (pvsql/llm.py). Drop them if you are wiring in your own model.
+openai>=1.30.0
+tenacity>=8.2.0
+
+# Optional: lets the adapter read credentials from a local .env file.
+python-dotenv>=1.0.0
