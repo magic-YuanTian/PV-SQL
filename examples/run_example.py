@@ -15,7 +15,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from pvsql import ConfigError, PVSQL, SQLiteEnv, get_token_usage, reset_token_usage
+from pvsql import PVSQL, SQLiteEnv
+from pvsql.llm import ConfigError, get_token_usage, reset_token_usage
 
 DB_PATH = Path(__file__).parent / "university.sqlite"
 

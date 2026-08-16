@@ -28,7 +28,8 @@ from typing import Any, Dict, List
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from pvsql import PVSQL, SQLiteEnv, get_token_usage, reset_token_usage
+from pvsql import PVSQL, SQLiteEnv
+from pvsql.llm import get_token_usage, reset_token_usage
 
 _write_lock = threading.Lock()
 _env_lock = threading.Lock()

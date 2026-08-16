@@ -10,19 +10,11 @@ Official implementation of our **ACL 2026** paper.
 
 ---
 
-**Probe-and-Verify text-to-SQL.** Instead of writing SQL from the schema text
-alone, PV-SQL first *probes* the live database with read-only queries to pin
-down the facts a schema does not record — the exact spelling of a status
-string, whether a date column is text or an integer year, whether a column is
-nullable — then writes the query, then *verifies* it and repairs what fails.
-
-Most text-to-SQL errors are not reasoning failures. They are grounding
-failures: the model guesses `status = 'enrolled'` when the database stores
-`'active'`, or applies `YEAR(...)` to a column holding `'2023-09-01'`. A
-handful of cheap probe queries removes that entire error class before
-generation begins.
-
----
+Instead of writing SQL from the schema text alone, PV-SQL first **probes** the
+live database with read-only queries to pin down what a schema does not record
+— the exact spelling of a status string, whether a date column is text or a
+number, whether a column is nullable — then writes the query, then **verifies**
+it and repairs what fails.
 
 ## How it works
 
@@ -36,47 +28,21 @@ Question ──▶ ① Probe ──▶ ② Generate ──▶ ③ Verify & Repai
                                                   └── repair ◀───┘
 ```
 
-**① Probe** — the model may issue up to `max_probes` read-only `SELECT`s to
-resolve literal values and column formats. It returns the relevant columns and
-a mapping from question terms to exact database values. It is explicitly
-forbidden from writing the final query at this stage.
+**① Probe** — the model issues up to `max_probes` read-only `SELECT`s to resolve
+literal values and column formats, and reports the relevant columns. It cannot
+write the final query at this stage.
 
-**② Generate** — one query, written with the probe observations, sampled values
-from each relevant column, the foreign-key graph, and a set of hard constraints
-parsed from the question (`DISTINCT` required, `LIMIT k` implied by "top 5",
-percentage numerator/denominator, and so on).
+**② Generate** — one query, written with the probe observations, sampled column
+values, the foreign-key graph, and hard constraints parsed from the question
+(`DISTINCT` required, `LIMIT k` implied by "top 5", and so on).
 
-**③ Verify & repair** — the query is checked statically against those
-constraints, validated with `EXPLAIN QUERY PLAN`, and executed under `LIMIT 1`.
-Any failure is fed back with a repair prompt chosen by error type — schema
-errors, logic errors, and everything else get different instructions. The loop
-stops when the query is clean, the budget is exhausted, or the model returns an
-unchanged query.
+**③ Verify & repair** — the query is checked against those constraints,
+validated with `EXPLAIN QUERY PLAN`, and executed under `LIMIT 1`. Failures are
+fed back with a repair prompt chosen by error type. The loop stops when the
+query is clean, the budget runs out, or the model stops changing its answer.
 
-Setting `max_probes=0` or `max_repairs=0` disables a stage. That is how the
-paper's ablations are produced — there is no separate code path.
-
-## Model-agnostic by construction
-
-PV-SQL is an agent framework, not an LLM wrapper. `pvsql/pv_sql.py` and
-`pvsql/db.py` import nothing outside the standard library. The model enters as
-a plain callable:
-
-```python
-def my_llm(messages: list[dict], temperature: float = 0) -> str:
-    """messages is [{"role": ..., "content": ...}, ...]; return the reply."""
-    ...
-
-from pvsql import PVSQL
-PVSQL("db.sqlite", llm=my_llm).run("How many active students?")
-```
-
-Anything that satisfies that signature works — a hosted API, a self-hosted
-server, a local process, or a stub that replays fixtures in a test.
-`pvsql/llm.py` is a small convenience adapter, nothing more; delete it and the
-method still runs.
-
----
+`max_probes=0` and `max_repairs=0` disable a stage — that is how the paper's
+ablations are produced, with no separate code path.
 
 ## Install
 
@@ -85,27 +51,13 @@ Python 3.9 or newer.
 ```bash
 git clone https://github.com/magic-YuanTian/PV-SQL.git
 cd PV-SQL
-
-python -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-
-pip install -e .                   # framework only -- no dependencies
-pip install -e ".[llm,dotenv]"     # plus the bundled adapter
+pip install -r requirements.txt
 ```
 
-`pip install -r requirements.txt` is equivalent to the second line. If you are
-plugging in your own model, the first line is all you need.
-
-## Configure the bundled adapter
-
-*Skip this entirely if you pass your own `llm` callable.*
-
-**No API keys are stored in this repository.** The adapter reads three
-environment variables:
+Set your credentials — nothing is hardcoded in this repository:
 
 ```bash
-cp .env.example .env
-# then edit .env
+cp .env.example .env      # then edit it
 ```
 
 ```bash
@@ -114,38 +66,23 @@ PVSQL_MODEL=gpt-4o
 # PVSQL_BASE_URL=https://your-endpoint/v1   # optional
 ```
 
-Exporting them in your shell works too — `python-dotenv` is optional. Verify
-the connection:
-
-```bash
-python -m pvsql.llm        # prints "ok" and a token count
-```
-
 ## Quick start
 
-The repository ships a tiny example database so you can run the whole pipeline
-without downloading any benchmark:
+A small example database ships with the repo, so nothing needs downloading:
 
 ```bash
 python examples/build_example_db.py     # creates examples/university.sqlite
 python examples/run_example.py
 ```
 
-You will see the probe queries, the generated SQL, its result, and the token
-cost for each of four demo questions. A single question:
+This prints the probe queries, the generated SQL, and its result for four demo
+questions. For a single question:
 
 ```bash
 python examples/run_example.py -q "Which department has the most active students?"
 ```
 
-To watch the whole loop run with **no API key and no network**, against a
-scripted stand-in model:
-
-```bash
-python examples/custom_llm.py
-```
-
-## Use it on your own database
+## Usage
 
 ```python
 from pvsql import PVSQL
@@ -154,7 +91,7 @@ agent = PVSQL("path/to/your.sqlite", verbose=True)
 print(agent.run("How many orders shipped late last quarter?"))
 ```
 
-To inspect what the pipeline did, not just its answer:
+To see what the pipeline did, not just its answer:
 
 ```python
 result = agent.run_with_trace("How many orders shipped late last quarter?")
@@ -162,12 +99,10 @@ result = agent.run_with_trace("How many orders shipped late last quarter?")
 result.sql              # final query
 result.probes           # [{"sql": ..., "obs": ...}, ...]
 result.value_mappings   # {"late": "DELAYED", ...}
-result.constraints      # parsed hard requirements
 result.repair_attempts  # how many repairs were needed
-result.final_issues     # anything still unresolved when the loop stopped
 ```
 
-Budgets, including the ablation settings:
+Budgets, including the ablations:
 
 ```python
 PVSQL("db.sqlite", max_probes=5, max_repairs=3)   # full method (default)
@@ -175,34 +110,26 @@ PVSQL("db.sqlite", max_probes=0)                  # no-probe ablation
 PVSQL("db.sqlite", max_repairs=0)                 # no-repair ablation
 ```
 
-## Batch mode
+## Bring your own model
 
-Write your questions as JSONL:
+The model is injected as a plain callable, so PV-SQL is not tied to any
+provider. `pvsql/pv_sql.py` and `pvsql/db.py` import nothing outside the
+standard library.
 
-```jsonl
-{"id": "q1", "question": "How many active students are there?"}
-{"id": "q2", "question": "Which department has the highest average GPA?", "evidence": "GPA is stored in students.gpa"}
+```python
+def my_llm(messages, temperature=0):
+    """messages is [{"role": ..., "content": ...}, ...]; return the reply."""
+    ...
+
+PVSQL("db.sqlite", llm=my_llm).run("How many active students?")
 ```
 
-Then:
+`pvsql/llm.py` is a small default adapter; delete it and the method still runs.
 
-```bash
-python scripts/run_batch.py \
-    --input questions.jsonl \
-    --db examples/university.sqlite \
-    --output predictions.jsonl \
-    --workers 4
-```
+## Other databases
 
-Each line may carry its own `db_path`, which is what you want when questions
-span many databases; `--db` is the fallback for those that do not. Results
-stream to disk as they complete, so `--resume` will skip anything already
-written if a run is interrupted.
-
-## Other database engines
-
-PV-SQL talks to the database through five methods. Implement them and the
-method works unchanged — nothing else in the pipeline is SQLite-specific:
+PV-SQL reaches the database through five methods. Implement them for any engine
+and the rest works unchanged:
 
 ```python
 from pvsql import DatabaseEnv
@@ -211,72 +138,45 @@ class PostgresEnv(DatabaseEnv):
     def execute(self, sql):        ...  # -> (columns, rows, error_or_None)
     def explain_err(self, sql):    ...  # -> error string, or None if valid
     def schema_overview(self):     ...  # -> compact text schema
-    def get_foreign_keys(self):    ...  # -> {table: [{from_table, from_column,
-                                        #             to_table, to_column}]}
-    def sample_values(self, t, c, limit=3): ...  # -> a few distinct values
+    def get_foreign_keys(self):    ...  # -> {table: [{from_table, ...}]}
+    def sample_values(self, t, c, limit=3): ...
 
 agent = PVSQL(PostgresEnv(dsn))
 ```
 
-`execute` must **return** errors rather than raise them — the repair loop reads
-those strings and feeds them back to the model. The prompts ask for SQLite
-dialect, so adjust `SQL_SYSTEM` and the `REPAIR_SYSTEM_*` constants in
-`pvsql/pv_sql.py` if you target a different dialect.
+`execute` must **return** errors rather than raise them — the repair loop feeds
+those strings back to the model. The prompts target SQLite dialect.
 
-## Reproducing the benchmark results
+## Benchmarks
 
-Benchmark data is **not** included — it is large and separately licensed.
-Download it from the original sources:
-
-- **BIRD** — https://bird-bench.github.io/
-- **Spider** — https://yale-lily.github.io/spider
-
-Both unpack to one SQLite file per database, `<db_root>/<db_id>/<db_id>.sqlite`,
-which the helpers expect:
+Benchmark data is not included. Download it from the original sources —
+[BIRD](https://bird-bench.github.io/) and
+[Spider](https://yale-lily.github.io/spider) — then:
 
 ```python
 from pvsql import PVSQL, SQLiteEnv
 
 env = SQLiteEnv.from_bird("data/bird/databases", "california_schools")
-sql = PVSQL(env).run(question, evidence=evidence)   # BIRD supplies evidence
+sql = PVSQL(env).run(question, evidence=evidence)
 ```
 
-To score predictions, use each benchmark's official evaluation script against
-the `predictions.jsonl` produced by `scripts/run_batch.py`. The execution-accuracy
-harness is not vendored here so that scoring stays byte-identical to the
-official one.
+To run a whole benchmark, `scripts/run_batch.py` takes questions as JSONL and
+writes predictions as JSONL:
 
-## Security
-
-The probing stage executes model-authored SQL against a live database. Treat
-that as the security boundary it is:
-
-- `SQLiteEnv` opens connections **read-only by default** (`mode=ro`). Leave it
-  that way; `read_only=False` exists only for local fixtures.
-- Point PV-SQL at a replica or a disposable copy, never at production.
-- Connect with a role that has `SELECT` and nothing else. A read-only file
-  handle is not a substitute for a least-privilege database account.
-- Probe queries and row samples are sent to your LLM provider. Do not run this
-  over sensitive data without checking that provider's retention policy.
-
-## Project layout
-
-```
-pvsql/
-  pv_sql.py            the method: probe, generate, verify, repair  (stdlib only)
-  db.py                DatabaseEnv interface + SQLiteEnv            (stdlib only)
-  llm.py               optional adapter, credentials read from environment
-examples/
-  build_example_db.py  generates a small demo database
-  run_example.py       end-to-end demo against a real model
-  custom_llm.py        same pipeline on a hand-written callable, fully offline
-scripts/
-  run_batch.py         concurrent batch runner with --resume
-.env.example           credential template
+```bash
+python scripts/run_batch.py -i questions.jsonl -o predictions.jsonl \
+    --db path/to.sqlite --workers 4
 ```
 
-The two framework modules have no third-party imports at all, so the method
-carries no opinion about how you reach a model.
+Score the predictions with each benchmark's official evaluation script, so the
+numbers stay comparable.
+
+## A note on safety
+
+The probing stage runs model-authored SQL against a live database. `SQLiteEnv`
+opens connections read-only by default — keep it that way, point PV-SQL at a
+replica rather than production, and remember that probe results and row samples
+are sent to your model provider.
 
 ## Citation
 
