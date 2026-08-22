@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Official implementation of our **ACL 2026** paper.
-[**Paper**](https://aclanthology.org/2026.findings-acl.1286/) · [**Live Demo**](http://18.207.218.62:3504/)
+[**Paper**](https://aclanthology.org/2026.findings-acl.1286/) · [**Live Demo**](https://yuan-tian.com/demo/pv-sql)
 
 ---
 
